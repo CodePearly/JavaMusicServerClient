@@ -64,7 +64,7 @@ public class MusicClient extends JFrame {
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
         
-        // Set column widths for clarity (optional)
+        // Set column widths for clarity.
         TableColumnModel colModel = table.getColumnModel();
         colModel.getColumn(0).setPreferredWidth(30);
         colModel.getColumn(1).setPreferredWidth(150);
@@ -73,21 +73,18 @@ public class MusicClient extends JFrame {
         colModel.getColumn(4).setPreferredWidth(60);
         colModel.getColumn(5).setPreferredWidth(80);
         
-        // Use custom cell renderers to mimic buttons (they'll appear clickable)
+        // Use a custom renderer to make "Play" and "Download" cells look clickable.
         colModel.getColumn(4).setCellRenderer(new ButtonCellRenderer("Play"));
         colModel.getColumn(5).setCellRenderer(new ButtonCellRenderer("Download"));
         
-        // Add a mouse listener that intercepts clicks on "Play" and "Download" columns.
+        // Add a mouse listener that detects clicks on the "Play" and "Download" columns.
         table.addMouseListener(new MouseInputAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 Point p = e.getPoint();
                 int row = table.rowAtPoint(p);
                 int col = table.columnAtPoint(p);
-                if (row == -1 || col == -1) {
-                    return;
-                }
-                // Translate column index if table is sorted.
+                if (row == -1 || col == -1) return;
                 int modelColumn = table.convertColumnIndexToModel(col);
                 if (modelColumn == 4) {
                     Song song = tableModel.getSongAt(table.convertRowIndexToModel(row));
@@ -99,19 +96,17 @@ public class MusicClient extends JFrame {
                     performAction("Download", song);
                 }
             }
-            
             @Override
             public void mouseEntered(MouseEvent e) {
                 Point p = e.getPoint();
                 int col = table.columnAtPoint(p);
-                int modelColumn = table.convertColumnIndexToModel(col);
-                if (modelColumn == 4 || modelColumn == 5) {
+                int modelCol = table.convertColumnIndexToModel(col);
+                if (modelCol == 4 || modelCol == 5) {
                     table.setCursor(new Cursor(Cursor.HAND_CURSOR));
                 } else {
                     table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
                 }
             }
-            
             @Override
             public void mouseExited(MouseEvent e) {
                 table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
@@ -135,6 +130,10 @@ public class MusicClient extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         System.out.println("[Client] GUI constructed.");
+    }
+
+    public JTable getTable() {
+        return table;
     }
 
     private void showConfigDialog() {
@@ -189,7 +188,7 @@ public class MusicClient extends JFrame {
     }
 
     private void playSong(Song song) {
-        System.out.println("[Client] Play button activated for song: " + song.getTitle());
+        System.out.println("[Client] Play activated for song: " + song.getTitle());
         try (Socket socket = new Socket(serverIp, serverPort);
              OutputStream out = socket.getOutputStream();
              BufferedInputStream in = new BufferedInputStream(socket.getInputStream()))
@@ -297,7 +296,7 @@ public class MusicClient extends JFrame {
         }
     }
 
-    // ------------- Inner Classes ------------------
+    // ------------- Inner Classes --------------
 
     public static class Song {
         private int id;
@@ -305,12 +304,29 @@ public class MusicClient extends JFrame {
         private String album;
         private String genre;
         private String filePath;
-
+        // Extra metadata (not currently shown in table, included in JSON)
+        private String artist;
+        private String albumArtist;
+        private String year;
+        private int trackLength;
+        private String producers;
+        private String publisher;
+        private String fileName;
+        private String albumImageBase64;
+        
         public int getId() { return id; }
         public String getTitle() { return title; }
         public String getAlbum() { return album; }
         public String getGenre() { return genre; }
         public String getFilePath() { return filePath; }
+        public String getArtist() { return artist; }
+        public String getAlbumArtist() { return albumArtist; }
+        public String getYear() { return year; }
+        public int getTrackLength() { return trackLength; }
+        public String getProducers() { return producers; }
+        public String getPublisher() { return publisher; }
+        public String getFileName() { return fileName; }
+        public String getAlbumImageBase64() { return albumImageBase64; }
     }
 
     public static class SongTableModel extends AbstractTableModel {
@@ -344,7 +360,7 @@ public class MusicClient extends JFrame {
                 case 1: return song.getTitle();
                 case 2: return song.getAlbum();
                 case 3: return song.getGenre();
-                case 4: return "Play";  // Display text
+                case 4: return "Play";
                 case 5: return "Download";
                 default: return "";
             }
@@ -357,11 +373,11 @@ public class MusicClient extends JFrame {
 
         @Override
         public boolean isCellEditable(int row, int col) {
-            return false; // We use mouse listener instead.
+            return false;
         }
     }
 
-    // Simple renderer to show a button-like appearance for Play and Download columns.
+    // Renderer to mimic a clickable button.
     public static class ButtonCellRenderer extends JButton implements javax.swing.table.TableCellRenderer {
         public ButtonCellRenderer(String label) {
             setText(label);
