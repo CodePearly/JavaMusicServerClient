@@ -64,20 +64,28 @@ public class MusicClient extends JFrame {
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
         
-        // Set column widths for clarity.
+        // Set preferred column widths:
         TableColumnModel colModel = table.getColumnModel();
-        colModel.getColumn(0).setPreferredWidth(30);
-        colModel.getColumn(1).setPreferredWidth(150);
-        colModel.getColumn(2).setPreferredWidth(100);
-        colModel.getColumn(3).setPreferredWidth(80);
-        colModel.getColumn(4).setPreferredWidth(60);
-        colModel.getColumn(5).setPreferredWidth(80);
+        colModel.getColumn(0).setPreferredWidth(30);    // ID
+        colModel.getColumn(1).setPreferredWidth(150);   // Title
+        colModel.getColumn(2).setPreferredWidth(100);   // Artist
+        colModel.getColumn(3).setPreferredWidth(100);   // Album
+        colModel.getColumn(4).setPreferredWidth(100);   // Album Artist
+        colModel.getColumn(5).setPreferredWidth(80);    // Genre
+        colModel.getColumn(6).setPreferredWidth(50);    // Year
+        colModel.getColumn(7).setPreferredWidth(60);    // Track Length
+        colModel.getColumn(8).setPreferredWidth(100);   // Producers
+        colModel.getColumn(9).setPreferredWidth(100);   // Publisher
+        colModel.getColumn(10).setPreferredWidth(150);  // File Name
+        colModel.getColumn(11).setPreferredWidth(80);   // Album Image
+        colModel.getColumn(12).setPreferredWidth(60);   // Play
+        colModel.getColumn(13).setPreferredWidth(80);   // Download
+
+        // For the Play and Download columns, set a renderer that resembles a clickable button.
+        colModel.getColumn(12).setCellRenderer(new ButtonCellRenderer("Play"));
+        colModel.getColumn(13).setCellRenderer(new ButtonCellRenderer("Download"));
         
-        // Use a custom renderer to make "Play" and "Download" cells look clickable.
-        colModel.getColumn(4).setCellRenderer(new ButtonCellRenderer("Play"));
-        colModel.getColumn(5).setCellRenderer(new ButtonCellRenderer("Download"));
-        
-        // Add a mouse listener that detects clicks on the "Play" and "Download" columns.
+        // Add a MouseListener to detect clicks on the "Play" and "Download" columns.
         table.addMouseListener(new MouseInputAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -85,14 +93,15 @@ public class MusicClient extends JFrame {
                 int row = table.rowAtPoint(p);
                 int col = table.columnAtPoint(p);
                 if (row == -1 || col == -1) return;
-                int modelColumn = table.convertColumnIndexToModel(col);
-                if (modelColumn == 4) {
+                int modelCol = table.convertColumnIndexToModel(col);
+                // Check for Play button (column index 12) or Download button (column index 13)
+                if (modelCol == 12) {
                     Song song = tableModel.getSongAt(table.convertRowIndexToModel(row));
-                    System.out.println("[Client] Play column clicked for song: " + song.getTitle());
+                    System.out.println("[Client] 'Play' clicked for song: " + song.getTitle());
                     performAction("Play", song);
-                } else if (modelColumn == 5) {
+                } else if (modelCol == 13) {
                     Song song = tableModel.getSongAt(table.convertRowIndexToModel(row));
-                    System.out.println("[Client] Download column clicked for song: " + song.getTitle());
+                    System.out.println("[Client] 'Download' clicked for song: " + song.getTitle());
                     performAction("Download", song);
                 }
             }
@@ -101,7 +110,7 @@ public class MusicClient extends JFrame {
                 Point p = e.getPoint();
                 int col = table.columnAtPoint(p);
                 int modelCol = table.convertColumnIndexToModel(col);
-                if (modelCol == 4 || modelCol == 5) {
+                if (modelCol == 12 || modelCol == 13) {
                     table.setCursor(new Cursor(Cursor.HAND_CURSOR));
                 } else {
                     table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
@@ -114,7 +123,8 @@ public class MusicClient extends JFrame {
         });
         
         add(new JScrollPane(table), BorderLayout.CENTER);
-
+        
+        // Create filter panel.
         JPanel topPanel = new JPanel(new BorderLayout());
         JPanel filterPanel = new JPanel();
         filterPanel.add(new JLabel("Filter (Title/Album/Genre): "));
@@ -125,17 +135,17 @@ public class MusicClient extends JFrame {
         filterPanel.add(filterBtn);
         topPanel.add(filterPanel, BorderLayout.NORTH);
         add(topPanel, BorderLayout.NORTH);
-
-        setSize(800, 600);
+        
+        setSize(1200, 600); // Increase width to accommodate more columns
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         System.out.println("[Client] GUI constructed.");
     }
-
+    
     public JTable getTable() {
         return table;
     }
-
+    
     private void showConfigDialog() {
         JTextField ipField = new JTextField("127.0.0.1");
         JTextField portField = new JTextField("5555");
@@ -157,7 +167,7 @@ public class MusicClient extends JFrame {
             System.exit(0);
         }
     }
-
+    
     public void fetchSongList() {
         try (Socket socket = new Socket(serverIp, serverPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -177,7 +187,7 @@ public class MusicClient extends JFrame {
             JOptionPane.showMessageDialog(this, "Failed to retrieve song list from server.");
         }
     }
-
+    
     public void performAction(String action, Song song) {
         System.out.println("[Client] Action: " + action + " on song: " + song.getTitle());
         if ("Play".equals(action)) {
@@ -186,7 +196,7 @@ public class MusicClient extends JFrame {
             new Thread(() -> downloadSong(song)).start();
         }
     }
-
+    
     private void playSong(Song song) {
         System.out.println("[Client] Play activated for song: " + song.getTitle());
         try (Socket socket = new Socket(serverIp, serverPort);
@@ -201,8 +211,8 @@ public class MusicClient extends JFrame {
                 Player mp3Player = new Player(in);
                 mp3Player.play();
                 return;
-            } else if (filePathLower.endsWith(".aac") ||
-                       filePathLower.endsWith(".ogg")) {
+            } else if (filePathLower.endsWith(".aac") || filePathLower.endsWith(".ogg")) {
+                // Write stream to temporary file and launch JavaFX player.
                 File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     byte[] buffer = new byte[4096];
@@ -226,7 +236,7 @@ public class MusicClient extends JFrame {
                     }
                 }).start();
                 return;
-            } else if (filePathLower.endsWith(".wma")) {
+            } else if (filePathLower.endsWith(".wma")){
                 System.out.println("[Client] WMA playback is not supported.");
                 JOptionPane.showMessageDialog(this, "Playback for WMA files is not supported.");
                 return;
@@ -252,7 +262,7 @@ public class MusicClient extends JFrame {
             JOptionPane.showMessageDialog(this, "Error playing song: " + song.getTitle());
         }
     }
-
+    
     private void downloadSong(Song song) {
         JFileChooser fileChooser = new JFileChooser();
         String suggestedName = song.getTitle() + song.getFilePath().substring(song.getFilePath().lastIndexOf('.'));
@@ -284,7 +294,7 @@ public class MusicClient extends JFrame {
             System.out.println("[Client] Download cancelled by user.");
         }
     }
-
+    
     private void filterTable() {
         String text = filterField.getText();
         TableRowSorter<SongTableModel> sorter = new TableRowSorter<>(tableModel);
@@ -295,16 +305,16 @@ public class MusicClient extends JFrame {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
         }
     }
-
+    
     // ------------- Inner Classes --------------
-
+    
     public static class Song {
         private int id;
         private String title;
         private String album;
         private String genre;
         private String filePath;
-        // Extra metadata (not currently shown in table, included in JSON)
+        // Extra metadata fields.
         private String artist;
         private String albumArtist;
         private String year;
@@ -328,56 +338,68 @@ public class MusicClient extends JFrame {
         public String getFileName() { return fileName; }
         public String getAlbumImageBase64() { return albumImageBase64; }
     }
-
+    
     public static class SongTableModel extends AbstractTableModel {
-        private String[] columnNames = { "ID", "Title", "Album", "Genre", "Play", "Download" };
+        // 14 columns are defined.
+        private String[] columnNames = { 
+            "ID", "Title", "Artist", "Album", "Album Artist", "Genre", "Year", "Length", 
+            "Producers", "Publisher", "File Name", "Album Image", "Play", "Download" 
+        };
         private List<Song> songs = new ArrayList<>();
-
+        
         public void setSongs(List<Song> songs) {
             this.songs = songs;
             fireTableDataChanged();
         }
-
+        
         public Song getSongAt(int row) {
             return songs.get(row);
         }
-
+        
         @Override
         public int getRowCount() {
             return songs.size();
         }
-
+        
         @Override
         public int getColumnCount() {
             return columnNames.length;
         }
-
+        
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             Song song = songs.get(rowIndex);
             switch (columnIndex) {
                 case 0: return song.getId();
                 case 1: return song.getTitle();
-                case 2: return song.getAlbum();
-                case 3: return song.getGenre();
-                case 4: return "Play";
-                case 5: return "Download";
+                case 2: return song.getArtist();
+                case 3: return song.getAlbum();
+                case 4: return song.getAlbumArtist();
+                case 5: return song.getGenre();
+                case 6: return song.getYear();
+                case 7: return song.getTrackLength();
+                case 8: return song.getProducers();
+                case 9: return song.getPublisher();
+                case 10: return song.getFileName();
+                case 11: return song.getAlbumImageBase64() == null || song.getAlbumImageBase64().isEmpty() ? "No" : "Yes";
+                case 12: return "Play";
+                case 13: return "Download";
                 default: return "";
             }
         }
-
+        
         @Override
         public String getColumnName(int col) {
             return columnNames[col];
         }
-
+        
         @Override
         public boolean isCellEditable(int row, int col) {
-            return false;
+            return false;  // Use mouse listener for actions.
         }
     }
-
-    // Renderer to mimic a clickable button.
+    
+    // Renderer to mimic a clickable button appearance.
     public static class ButtonCellRenderer extends JButton implements javax.swing.table.TableCellRenderer {
         public ButtonCellRenderer(String label) {
             setText(label);
