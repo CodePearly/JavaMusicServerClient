@@ -1,0 +1,2 @@
+java -cp MusicServer.jar:MusicServer/lib/gson.jar:MusicServer/lib/jaudiotagger.jar MusicServer
+java -cp MusicServer.jar;MusicServer/lib/gson.jar;MusicServer/lib/jaudiotagger.jar MusicServer
