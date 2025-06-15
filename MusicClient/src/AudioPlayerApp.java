@@ -17,7 +17,7 @@ public class AudioPlayerApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
-            System.out.println("[AudioPlayerApp] Inside start; attempting to create media for: " + mediaUrl);
+            System.out.println("[AudioPlayerApp] Starting media playback for: " + mediaUrl);
             Media media = new Media(mediaUrl);
             MediaPlayer player = new MediaPlayer(media);
             player.setOnError(() -> {
@@ -34,7 +34,7 @@ public class AudioPlayerApp extends Application {
             System.err.println("[AudioPlayerApp] MediaException: " + me.getMessage());
             me.printStackTrace();
         } catch (Exception e) {
-            System.err.println("[AudioPlayerApp] Exception in start method: ");
+            System.err.println("[AudioPlayerApp] Exception in start method:");
             e.printStackTrace();
         }
     }

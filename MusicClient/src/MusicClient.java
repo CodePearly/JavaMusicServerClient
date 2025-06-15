@@ -21,6 +21,7 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
 import javax.swing.SwingUtilities;
+import javax.swing.event.CellEditorListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableCellRenderer;
@@ -41,6 +42,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.EventObject;
 import java.util.List;
 
 public class MusicClient extends JFrame {
@@ -64,7 +66,7 @@ public class MusicClient extends JFrame {
         setLayout(new BorderLayout());
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
-        // Configure custom renderers and editors for the "Play" and "Download" columns (columns 4 and 5).
+        // Configure custom renderers and editors for "Play" (col 4) and "Download" (col 5)
         TableColumnModel colModel = table.getColumnModel();
         colModel.getColumn(4).setCellRenderer(new ButtonRenderer("Play"));
         colModel.getColumn(4).setCellEditor(new ButtonEditor(new JCheckBox(), "Play", this));
@@ -88,7 +90,7 @@ public class MusicClient extends JFrame {
         System.out.println("[Client] GUI constructed.");
     }
 
-    // Public accessor for the table.
+    // Public accessor for inner classes to access the table
     public JTable getTable() {
         return table;
     }
@@ -160,7 +162,7 @@ public class MusicClient extends JFrame {
                 return;
             } else if (filePathLower.endsWith(".aac") ||
                        filePathLower.endsWith(".ogg")) {
-                // Download to temporary file for JavaFX playback.
+                // Use JavaFX for AAC or OGG playback.
                 File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     byte[] buffer = new byte[4096];
@@ -254,7 +256,7 @@ public class MusicClient extends JFrame {
         }
     }
 
-    // ------------------ Inner Classes ------------------
+    // ------------- Inner Classes ------------------
 
     public static class Song {
         private int id;
@@ -322,7 +324,6 @@ public class MusicClient extends JFrame {
         public ButtonRenderer(String text) {
             setText(text);
         }
-
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
@@ -348,7 +349,7 @@ public class MusicClient extends JFrame {
             button.addActionListener(e -> {
                 int modelRow = client.getTable().convertRowIndexToModel(currentRow);
                 Song song = ((SongTableModel) client.getTable().getModel()).getSongAt(modelRow);
-                System.out.println("Button '" + action + "' clicked for song: " + song.getTitle());
+                System.out.println("[Client] Button '" + action + "' clicked for song: " + song.getTitle());
                 client.performAction(action, song);
             });
         }
@@ -362,6 +363,16 @@ public class MusicClient extends JFrame {
         @Override
         public Object getCellEditorValue() {
             return action;
+        }
+        
+        // Override to ensure that a single click activates the editor immediately.
+        @Override
+        public boolean isCellEditable(EventObject e) {
+            if (e instanceof MouseEvent) {
+                MouseEvent me = (MouseEvent) e;
+                return me.getClickCount() >= 1;
+            }
+            return true;
         }
     }
 }
