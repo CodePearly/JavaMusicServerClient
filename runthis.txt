@@ -1,13 +1,4 @@
 java -cp MusicServer.jar:MusicServer/lib/gson.jar:MusicServer/lib/jaudiotagger.jar MusicServer
 java -cp MusicServer.jar;MusicServer/lib/gson.jar;MusicServer/lib/jaudiotagger.jar MusicServer
-java -cp MusicClient.jar;MusicClient/lib/gson.jar;MusicClient/lib/jaudiotagger.jar MusicClient
-java -cp MusicClient.jar:MusicClient/lib/gson.jar:MusicClient/lib/jaudiotagger.jar MusicClient
-curl -L -o MusicClient/lib/javafx-base.jar https://repo1.maven.org/maven2/org/openjfx/javafx-base/17.0.2/javafx-base-17.0.2-win.jar
-curl -L -o MusicClient/lib/javafx-graphics.jar https://repo1.maven.org/maven2/org/openjfx/javafx-graphics/17.0.2/javafx-graphics-17.0.2-win.jar
-curl -L -o MusicClient/lib/javafx-media.jar https://repo1.maven.org/maven2/org/openjfx/javafx-media/17.0.2/javafx-media-17.0.2-win.jar
-
-
-
-
-
-
+java -cp MusicClient.jar;MusicClient/lib/gson.jar;MusicClient/lib/jaudiotagger.jar;MusicClient/lib/javafx-base.jar;MusicClient/lib/javafx-graphics.jar;MusicClient/lib/javafx-media.jar MusicClient
+java -cp MusicClient.jar:MusicClient/lib/gson.jar:MusicClient/lib/jaudiotagger.jar:MusicClient/lib/javafx-base.jar:MusicClient/lib/javafx-graphics.jar:MusicClient/lib/javafx-media.jar MusicClient
