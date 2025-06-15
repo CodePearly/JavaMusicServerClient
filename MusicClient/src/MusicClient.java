@@ -53,6 +53,7 @@ public class MusicClient extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            System.out.println("[Client] Starting MusicClient GUI...");
             MusicClient client = new MusicClient();
             client.showConfigDialog();
         });
@@ -63,7 +64,7 @@ public class MusicClient extends JFrame {
         setLayout(new BorderLayout());
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
-        // Set custom cell renderer and editor for "Play" (column 4) and "Download" (column 5)
+        // Configure custom renderers and editors for the "Play" and "Download" columns (columns 4 and 5).
         TableColumnModel colModel = table.getColumnModel();
         colModel.getColumn(4).setCellRenderer(new ButtonRenderer("Play"));
         colModel.getColumn(4).setCellEditor(new ButtonEditor(new JCheckBox(), "Play", this));
@@ -84,9 +85,10 @@ public class MusicClient extends JFrame {
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        System.out.println("[Client] GUI constructed.");
     }
 
-    // Public accessor so inner classes can reach the table.
+    // Public accessor for the table.
     public JTable getTable() {
         return table;
     }
@@ -104,9 +106,11 @@ public class MusicClient extends JFrame {
                 JOptionPane.showMessageDialog(this, "Invalid port number.");
                 System.exit(1);
             }
+            System.out.println("[Client] Connecting to server at " + serverIp + ":" + serverPort);
             fetchSongList();
             setVisible(true);
         } else {
+            System.out.println("[Client] User cancelled configuration. Exiting.");
             System.exit(0);
         }
     }
@@ -116,21 +120,23 @@ public class MusicClient extends JFrame {
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream())))
         {
+            System.out.println("[Client] Requesting song list from server...");
             out.println("LIST");
             String json = in.readLine();
             Gson gson = new Gson();
             java.lang.reflect.Type listType = new TypeToken<List<Song>>() {}.getType();
             List<Song> songs = gson.fromJson(json, listType);
             tableModel.setSongs(songs);
-            System.out.println("Fetched " + songs.size() + " songs from server.");
+            System.out.println("[Client] Fetched " + songs.size() + " songs from server.");
         } catch (Exception e) {
+            System.err.println("[Client] Error fetching song list:");
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Failed to retrieve song list from server.");
         }
     }
 
     public void performAction(String action, Song song) {
-        System.out.println("Action: " + action + " on song: " + song.getTitle());
+        System.out.println("[Client] Action: " + action + " on song: " + song.getTitle());
         if ("Play".equals(action)) {
             new Thread(() -> playSong(song)).start();
         } else if ("Download".equals(action)) {
@@ -139,7 +145,7 @@ public class MusicClient extends JFrame {
     }
 
     private void playSong(Song song) {
-        System.out.println("Play button pressed for song: " + song.getTitle());
+        System.out.println("[Client] Play button pressed for song: " + song.getTitle());
         try (Socket socket = new Socket(serverIp, serverPort);
              OutputStream out = socket.getOutputStream();
              BufferedInputStream in = new BufferedInputStream(socket.getInputStream()))
@@ -148,14 +154,13 @@ public class MusicClient extends JFrame {
             writer.println("STREAM " + song.getId());
             String filePathLower = song.getFilePath().toLowerCase();
             if (filePathLower.endsWith(".mp3")) {
-                System.out.println("Playing MP3: " + song.getTitle());
+                System.out.println("[Client] Playing MP3: " + song.getTitle());
                 Player mp3Player = new Player(in);
                 mp3Player.play();
                 return;
             } else if (filePathLower.endsWith(".aac") ||
-                       filePathLower.endsWith(".wma") ||
                        filePathLower.endsWith(".ogg")) {
-                // Write stream to a temporary file.
+                // Download to temporary file for JavaFX playback.
                 File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     byte[] buffer = new byte[4096];
@@ -164,13 +169,13 @@ public class MusicClient extends JFrame {
                         fos.write(buffer, 0, bytesRead);
                     }
                 }
-                System.out.println("Temporary file created at: " + tempFile.getAbsolutePath() +
+                System.out.println("[Client] Temporary file created at: " + tempFile.getAbsolutePath() +
                                    " (size: " + tempFile.length() + " bytes)");
                 if (tempFile.length() < 1024) {
                     JOptionPane.showMessageDialog(this, "The downloaded media file appears to be too small.");
                     return;
                 }
-                System.out.println("Launching JavaFX Media Player for: " + song.getTitle());
+                System.out.println("[Client] Launching JavaFX Media Player for: " + song.getTitle());
                 new Thread(() -> {
                     try {
                         AudioPlayerApp.launchApp(tempFile.toURI().toString());
@@ -179,8 +184,12 @@ public class MusicClient extends JFrame {
                     }
                 }).start();
                 return;
+            } else if (filePathLower.endsWith(".wma")) {
+                System.out.println("[Client] WMA playback is not supported.");
+                JOptionPane.showMessageDialog(this, "Playback for WMA files is not supported.");
+                return;
             } else {
-                System.out.println("Playing native format: " + song.getTitle());
+                System.out.println("[Client] Playing native format: " + song.getTitle());
                 AudioInputStream audioStream = AudioSystem.getAudioInputStream(in);
                 AudioFormat format = audioStream.getFormat();
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
@@ -196,6 +205,7 @@ public class MusicClient extends JFrame {
                 speaker.close();
             }
         } catch (Exception e) {
+            System.err.println("[Client] Error playing song " + song.getTitle() + ":");
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Error playing song: " + song.getTitle());
         }
@@ -208,6 +218,7 @@ public class MusicClient extends JFrame {
         int option = fileChooser.showSaveDialog(this);
         if (option == JFileChooser.APPROVE_OPTION) {
             File saveFile = fileChooser.getSelectedFile();
+            System.out.println("[Client] Initiating download for: " + song.getTitle());
             try (Socket socket = new Socket(serverIp, serverPort);
                  OutputStream out = socket.getOutputStream();
                  BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
@@ -217,16 +228,18 @@ public class MusicClient extends JFrame {
                 writer.println("DOWNLOAD " + song.getId());
                 byte[] buffer = new byte[4096];
                 int bytesRead;
-                System.out.println("Downloading: " + song.getTitle());
                 while ((bytesRead = in.read(buffer)) > 0) {
                     fos.write(buffer, 0, bytesRead);
                 }
-                System.out.println("Download finished: " + song.getTitle());
+                System.out.println("[Client] Download completed for: " + song.getTitle());
                 JOptionPane.showMessageDialog(this, "Downloaded " + song.getTitle());
             } catch (Exception e) {
+                System.err.println("[Client] Error downloading song " + song.getTitle() + ":");
                 e.printStackTrace();
                 JOptionPane.showMessageDialog(this, "Error downloading song: " + song.getTitle());
             }
+        } else {
+            System.out.println("[Client] Download cancelled by user.");
         }
     }
 
@@ -241,9 +254,7 @@ public class MusicClient extends JFrame {
         }
     }
 
-    // -----------------
-    // Inner Classes
-    // -----------------
+    // ------------------ Inner Classes ------------------
 
     public static class Song {
         private int id;
@@ -290,8 +301,8 @@ public class MusicClient extends JFrame {
                 case 1: return song.getTitle();
                 case 2: return song.getAlbum();
                 case 3: return song.getGenre();
-                case 4: return "";  // "Play" button column
-                case 5: return "";  // "Download" button column
+                case 4: return "";  // "Play" column
+                case 5: return "";  // "Download" column
                 default: return "";
             }
         }
@@ -311,6 +322,7 @@ public class MusicClient extends JFrame {
         public ButtonRenderer(String text) {
             setText(text);
         }
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
