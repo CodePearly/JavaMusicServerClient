@@ -8,9 +8,7 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.SourceDataLine;
-import javax.swing.AbstractCellEditor;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -21,17 +19,17 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
 import javax.swing.SwingUtilities;
-import javax.swing.event.CellEditorListener;
+import javax.swing.event.MouseInputAdapter;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.TableCellEditor;
-import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
-import java.awt.FlowLayout;
+import java.awt.Cursor;
+import java.awt.Font;
+import java.awt.Point;
 import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -42,7 +40,6 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.EventObject;
 import java.util.List;
 
 public class MusicClient extends JFrame {
@@ -66,33 +63,78 @@ public class MusicClient extends JFrame {
         setLayout(new BorderLayout());
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
-        // Configure custom renderers and editors for "Play" (col 4) and "Download" (col 5)
+        
+        // Set column widths for clarity (optional)
         TableColumnModel colModel = table.getColumnModel();
-        colModel.getColumn(4).setCellRenderer(new ButtonRenderer("Play"));
-        colModel.getColumn(4).setCellEditor(new ButtonEditor(new JCheckBox(), "Play", this));
-        colModel.getColumn(5).setCellRenderer(new ButtonRenderer("Download"));
-        colModel.getColumn(5).setCellEditor(new ButtonEditor(new JCheckBox(), "Download", this));
-
+        colModel.getColumn(0).setPreferredWidth(30);
+        colModel.getColumn(1).setPreferredWidth(150);
+        colModel.getColumn(2).setPreferredWidth(100);
+        colModel.getColumn(3).setPreferredWidth(80);
+        colModel.getColumn(4).setPreferredWidth(60);
+        colModel.getColumn(5).setPreferredWidth(80);
+        
+        // Use custom cell renderers to mimic buttons (they'll appear clickable)
+        colModel.getColumn(4).setCellRenderer(new ButtonCellRenderer("Play"));
+        colModel.getColumn(5).setCellRenderer(new ButtonCellRenderer("Download"));
+        
+        // Add a mouse listener that intercepts clicks on "Play" and "Download" columns.
+        table.addMouseListener(new MouseInputAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                Point p = e.getPoint();
+                int row = table.rowAtPoint(p);
+                int col = table.columnAtPoint(p);
+                if (row == -1 || col == -1) {
+                    return;
+                }
+                // Translate column index if table is sorted.
+                int modelColumn = table.convertColumnIndexToModel(col);
+                if (modelColumn == 4) {
+                    Song song = tableModel.getSongAt(table.convertRowIndexToModel(row));
+                    System.out.println("[Client] Play column clicked for song: " + song.getTitle());
+                    performAction("Play", song);
+                } else if (modelColumn == 5) {
+                    Song song = tableModel.getSongAt(table.convertRowIndexToModel(row));
+                    System.out.println("[Client] Download column clicked for song: " + song.getTitle());
+                    performAction("Download", song);
+                }
+            }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                Point p = e.getPoint();
+                int col = table.columnAtPoint(p);
+                int modelColumn = table.convertColumnIndexToModel(col);
+                if (modelColumn == 4 || modelColumn == 5) {
+                    table.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                } else {
+                    table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+                }
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+            }
+        });
+        
         add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JPanel topPanel = new JPanel(new FlowLayout());
-        topPanel.add(new JLabel("Filter (Title/Album/Genre): "));
+        JPanel topPanel = new JPanel(new BorderLayout());
+        JPanel filterPanel = new JPanel();
+        filterPanel.add(new JLabel("Filter (Title/Album/Genre): "));
         filterField = new JTextField(20);
-        topPanel.add(filterField);
+        filterPanel.add(filterField);
         JButton filterBtn = new JButton("Filter");
         filterBtn.addActionListener((ActionEvent e) -> filterTable());
-        topPanel.add(filterBtn);
+        filterPanel.add(filterBtn);
+        topPanel.add(filterPanel, BorderLayout.NORTH);
         add(topPanel, BorderLayout.NORTH);
 
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         System.out.println("[Client] GUI constructed.");
-    }
-
-    // Public accessor for inner classes to access the table
-    public JTable getTable() {
-        return table;
     }
 
     private void showConfigDialog() {
@@ -147,7 +189,7 @@ public class MusicClient extends JFrame {
     }
 
     private void playSong(Song song) {
-        System.out.println("[Client] Play button pressed for song: " + song.getTitle());
+        System.out.println("[Client] Play button activated for song: " + song.getTitle());
         try (Socket socket = new Socket(serverIp, serverPort);
              OutputStream out = socket.getOutputStream();
              BufferedInputStream in = new BufferedInputStream(socket.getInputStream()))
@@ -162,7 +204,6 @@ public class MusicClient extends JFrame {
                 return;
             } else if (filePathLower.endsWith(".aac") ||
                        filePathLower.endsWith(".ogg")) {
-                // Use JavaFX for AAC or OGG playback.
                 File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     byte[] buffer = new byte[4096];
@@ -303,8 +344,8 @@ public class MusicClient extends JFrame {
                 case 1: return song.getTitle();
                 case 2: return song.getAlbum();
                 case 3: return song.getGenre();
-                case 4: return "";  // "Play" column
-                case 5: return "";  // "Download" column
+                case 4: return "Play";  // Display text
+                case 5: return "Download";
                 default: return "";
             }
         }
@@ -316,63 +357,23 @@ public class MusicClient extends JFrame {
 
         @Override
         public boolean isCellEditable(int row, int col) {
-            return col == 4 || col == 5;
+            return false; // We use mouse listener instead.
         }
     }
 
-    public static class ButtonRenderer extends JButton implements TableCellRenderer {
-        public ButtonRenderer(String text) {
-            setText(text);
+    // Simple renderer to show a button-like appearance for Play and Download columns.
+    public static class ButtonCellRenderer extends JButton implements javax.swing.table.TableCellRenderer {
+        public ButtonCellRenderer(String label) {
+            setText(label);
+            setOpaque(true);
+            setForeground(Color.BLUE.darker());
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+            setFont(new Font("SansSerif", Font.BOLD, 12));
         }
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
             return this;
-        }
-    }
-
-    public static class ButtonEditor extends AbstractCellEditor implements TableCellEditor {
-        protected JButton button;
-        private String action;
-        private MusicClient client;
-        private int currentRow;
-
-        public ButtonEditor(JCheckBox checkBox, String action, MusicClient client) {
-            this.action = action;
-            this.client = client;
-            button = new JButton(action);
-            button.addMouseListener(new MouseAdapter() {
-                public void mousePressed(MouseEvent e) {
-                    fireEditingStopped();
-                }
-            });
-            button.addActionListener(e -> {
-                int modelRow = client.getTable().convertRowIndexToModel(currentRow);
-                Song song = ((SongTableModel) client.getTable().getModel()).getSongAt(modelRow);
-                System.out.println("[Client] Button '" + action + "' clicked for song: " + song.getTitle());
-                client.performAction(action, song);
-            });
-        }
-
-        @Override
-        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
-            currentRow = row;
-            return button;
-        }
-
-        @Override
-        public Object getCellEditorValue() {
-            return action;
-        }
-        
-        // Override to ensure that a single click activates the editor immediately.
-        @Override
-        public boolean isCellEditable(EventObject e) {
-            if (e instanceof MouseEvent) {
-                MouseEvent me = (MouseEvent) e;
-                return me.getClickCount() >= 1;
-            }
-            return true;
         }
     }
 }
