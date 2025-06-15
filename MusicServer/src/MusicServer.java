@@ -15,7 +15,6 @@ import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
-import java.nio.file.*;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -23,11 +22,11 @@ import java.util.concurrent.Executors;
 
 public class MusicServer {
 
-    // Map songID -> Song
-    private Map<Integer, Song> songDatabase = new HashMap<>();
+    // Map of song ID to Song objects.
+    private final Map<Integer, Song> songDatabase = new HashMap<>();
     private int songIdCounter = 0;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
-    private final int PORT = 5555; // adjust as needed
+    private final int PORT = 5555;  // Change as needed
 
     public static void main(String[] args) {
         MusicServer server = new MusicServer();
@@ -35,7 +34,7 @@ public class MusicServer {
     }
 
     public void start() {
-        // First, choose local folders for indexing.
+        // Let the user choose local folders to index.
         List<File> chosenDirs = chooseMusicDirectories();
         if (!chosenDirs.isEmpty()) {
             indexDirectories(chosenDirs);
@@ -43,13 +42,13 @@ public class MusicServer {
             JOptionPane.showMessageDialog(null, "No local folders selected.");
         }
         
-        // Also check for OneDrive URLs from onedrive_list.txt (if available).
+        // Also try to index OneDrive URLs if available.
         indexOneDriveFiles();
 
-        // Save the indexed list to JSON
+        // Save the index to a JSON file.
         saveDatabaseToJson();
 
-        // Start the server socket to serve clients.
+        // Start the server socket.
         ExecutorService pool = Executors.newCachedThreadPool();
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Music server started on port " + PORT);
@@ -62,7 +61,7 @@ public class MusicServer {
         }
     }
 
-    // Let the user choose directories containing audio files
+    // Allow selection of directories via a Swing file chooser.
     private List<File> chooseMusicDirectories() {
         List<File> directories = new ArrayList<>();
         JButton selectButton = new JButton("Choose Folders to Index");
@@ -72,7 +71,6 @@ public class MusicServer {
         frame.add(selectButton, BorderLayout.CENTER);
         frame.setSize(300, 100);
         frame.setLocationRelativeTo(null);
-        
         selectButton.addActionListener((ActionEvent e) -> {
             JFileChooser chooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
             chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -84,7 +82,6 @@ public class MusicServer {
             frame.dispose();
         });
         frame.setVisible(true);
-        // Wait until frame closes.
         while (frame.isDisplayable()) {
             try {
                 Thread.sleep(200);
@@ -93,7 +90,7 @@ public class MusicServer {
         return directories;
     }
 
-    // Recursively index files in each chosen local directory.
+    // Index files recursively in each chosen directory.
     private void indexDirectories(List<File> directories) {
         for (File dir : directories) {
             indexFolder(dir);
@@ -109,13 +106,11 @@ public class MusicServer {
                 indexFolder(file);
             } else {
                 String fileName = file.getName().toLowerCase();
-                // Check for supported audio extensions.
                 if (fileName.endsWith(".mp3")   || fileName.endsWith(".wav")  ||
                     fileName.endsWith(".flac")  || fileName.endsWith(".aiff") ||
                     fileName.endsWith(".aac")   || fileName.endsWith(".wma")  ||
                     fileName.endsWith(".ogg")) {
                     
-                    // Extract metadata using Jaudiotagger, if possible.
                     String title = file.getName();
                     String album = "Unknown";
                     String genre = "Unknown";
@@ -131,7 +126,7 @@ public class MusicServer {
                             if (g != null && !g.isEmpty()) genre = g;
                         }
                     } catch (Exception e) {
-                        // On failure, keep default values.
+                        // Use defaults if metadata extraction fails.
                     }
                     Song song = new Song(++songIdCounter, title, album, genre, file.getAbsolutePath());
                     songDatabase.put(song.getId(), song);
@@ -141,15 +136,13 @@ public class MusicServer {
         }
     }
 
-    // Reads a text file "onedrive_list.txt" (if present) containing OneDrive audio file URLs (one per line),
-    // downloads them to a folder, and indexes them.
+    // Try to index remote OneDrive files listed in "onedrive_list.txt"
     private void indexOneDriveFiles() {
         File oneDriveList = new File("onedrive_list.txt");
         if (!oneDriveList.exists()) {
             System.out.println("No onedrive_list.txt file found; skipping OneDrive downloads.");
             return;
         }
-        // Create a folder to store downloaded files.
         File downloadDir = new File("downloaded_onedrive");
         if (!downloadDir.exists()) {
             downloadDir.mkdirs();
@@ -160,11 +153,9 @@ public class MusicServer {
                 urlStr = urlStr.trim();
                 if (urlStr.isEmpty()) continue;
                 try {
-                    // Determine filename from URL.
                     URL url = new URL(urlStr);
                     String path = url.getPath();
                     String fileName = path.substring(path.lastIndexOf('/') + 1).toLowerCase();
-                    // Check for supported file types.
                     if (!(fileName.endsWith(".mp3")   || fileName.endsWith(".wav")  ||
                           fileName.endsWith(".flac")  || fileName.endsWith(".aiff") ||
                           fileName.endsWith(".aac")   || fileName.endsWith(".wma")  ||
@@ -173,7 +164,6 @@ public class MusicServer {
                         continue;
                     }
                     File localFile = new File(downloadDir, fileName);
-                    // Download the file.
                     downloadFile(urlStr, localFile);
                     // Index the downloaded file.
                     indexFolder(localFile.getParentFile());
@@ -188,26 +178,25 @@ public class MusicServer {
         }
     }
 
-    // Downloads a file from a URL to a local file.
+    // Download a file from a URL.
     private void downloadFile(String urlStr, File destination) throws IOException {
         System.out.println("Downloading from OneDrive: " + urlStr);
         URL url = new URL(urlStr);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        // Optionally set timeouts.
         connection.setConnectTimeout(10000);
         connection.setReadTimeout(10000);
         try (InputStream in = connection.getInputStream();
              FileOutputStream out = new FileOutputStream(destination)) {
             byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
+            int count;
+            while ((count = in.read(buffer)) > 0) {
+                out.write(buffer, 0, count);
             }
         }
         System.out.println("Downloaded to: " + destination.getAbsolutePath());
     }
 
-    // Save indexed songs to a JSON file.
+    // Write the current song database to indexed_music.json.
     private void saveDatabaseToJson() {
         try (Writer writer = new FileWriter("indexed_music.json")) {
             gson.toJson(songDatabase.values(), writer);
@@ -218,7 +207,7 @@ public class MusicServer {
     }
 }
 
-// A simple data class representing a song.
+// A simple data class representing a music file.
 class Song implements Serializable {
     private int id;
     private String title;
@@ -233,30 +222,18 @@ class Song implements Serializable {
         this.genre = genre;
         this.filePath = filePath;
     }
-
-    // Getters...
-    public int getId() {
-        return id;
-    }
-    public String getTitle() {
-        return title;
-    }
-    public String getAlbum() {
-        return album;
-    }
-    public String getGenre() {
-        return genre;
-    }
-    public String getFilePath() {
-        return filePath;
-    }
+    public int getId() { return id; }
+    public String getTitle() { return title; }
+    public String getAlbum() { return album; }
+    public String getGenre() { return genre; }
+    public String getFilePath() { return filePath; }
 }
 
-// A separate thread class to handle client requests.
+// Handles commands from a connected client.
 class ClientHandler implements Runnable {
 
-    private Socket clientSocket;
-    private Map<Integer, Song> songDatabase;
+    private final Socket clientSocket;
+    private final Map<Integer, Song> songDatabase;
 
     public ClientHandler(Socket clientSocket, Map<Integer, Song> songDatabase) {
         this.clientSocket = clientSocket;
@@ -273,7 +250,6 @@ class ClientHandler implements Runnable {
 
             String request;
             while ((request = in.readLine()) != null) {
-                // Protocol: LIST, STREAM <id>, DOWNLOAD <id>
                 if (request.equalsIgnoreCase("LIST")) {
                     String json = new Gson().toJson(songDatabase.values());
                     writer.println(json);
@@ -310,7 +286,7 @@ class ClientHandler implements Runnable {
                         }
                     }
                 }
-                break; // End after one request.
+                break; // End after one command.
             }
         } catch (IOException e) {
             e.printStackTrace();

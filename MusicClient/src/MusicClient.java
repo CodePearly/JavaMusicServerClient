@@ -1,7 +1,7 @@
 // MusicClient.java
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import javazoom.jl.player.Player;  // for MP3 playback via JLayer
+import javazoom.jl.player.Player;  // For MP3 playback via JLayer
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -63,8 +63,7 @@ public class MusicClient extends JFrame {
         setLayout(new BorderLayout());
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
-        // Set a custom cell renderer and editor for the "Play" and "Download" columns.
-        // In our table model, columns index 4 and 5 are for Play and Download.
+        // Set custom cell renderer and editor for "Play" (column 4) and "Download" (column 5)
         TableColumnModel colModel = table.getColumnModel();
         colModel.getColumn(4).setCellRenderer(new ButtonRenderer("Play"));
         colModel.getColumn(4).setCellEditor(new ButtonEditor(new JCheckBox(), "Play", this));
@@ -87,7 +86,7 @@ public class MusicClient extends JFrame {
         setLocationRelativeTo(null);
     }
 
-    // Public accessor for the table so inner classes can access it.
+    // Public accessor so inner classes can reach the table.
     public JTable getTable() {
         return table;
     }
@@ -150,14 +149,13 @@ public class MusicClient extends JFrame {
             String filePathLower = song.getFilePath().toLowerCase();
             if (filePathLower.endsWith(".mp3")) {
                 System.out.println("Playing MP3: " + song.getTitle());
-                // Use JLayer to play MP3.
                 Player mp3Player = new Player(in);
                 mp3Player.play();
                 return;
             } else if (filePathLower.endsWith(".aac") ||
                        filePathLower.endsWith(".wma") ||
                        filePathLower.endsWith(".ogg")) {
-                // Write stream to a temporary file for JavaFX to play.
+                // Write stream to a temporary file.
                 File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     byte[] buffer = new byte[4096];
@@ -165,6 +163,12 @@ public class MusicClient extends JFrame {
                     while ((bytesRead = in.read(buffer)) != -1) {
                         fos.write(buffer, 0, bytesRead);
                     }
+                }
+                System.out.println("Temporary file created at: " + tempFile.getAbsolutePath() +
+                                   " (size: " + tempFile.length() + " bytes)");
+                if (tempFile.length() < 1024) {
+                    JOptionPane.showMessageDialog(this, "The downloaded media file appears to be too small.");
+                    return;
                 }
                 System.out.println("Launching JavaFX Media Player for: " + song.getTitle());
                 new Thread(() -> {
@@ -248,7 +252,6 @@ public class MusicClient extends JFrame {
         private String genre;
         private String filePath;
 
-        // Getters
         public int getId() { return id; }
         public String getTitle() { return title; }
         public String getAlbum() { return album; }
@@ -287,9 +290,8 @@ public class MusicClient extends JFrame {
                 case 1: return song.getTitle();
                 case 2: return song.getAlbum();
                 case 3: return song.getGenre();
-                // For the button columns, just return an empty String.
-                case 4: return "";
-                case 5: return "";
+                case 4: return "";  // "Play" button column
+                case 5: return "";  // "Download" button column
                 default: return "";
             }
         }
@@ -301,7 +303,6 @@ public class MusicClient extends JFrame {
 
         @Override
         public boolean isCellEditable(int row, int col) {
-            // Only the "Play" (4) and "Download" (5) columns are editable.
             return col == 4 || col == 5;
         }
     }
@@ -310,11 +311,9 @@ public class MusicClient extends JFrame {
         public ButtonRenderer(String text) {
             setText(text);
         }
-
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus,
-                                                       int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
             return this;
         }
     }
@@ -343,8 +342,7 @@ public class MusicClient extends JFrame {
         }
 
         @Override
-        public Component getTableCellEditorComponent(JTable table, Object value,
-                                                     boolean isSelected, int row, int column) {
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             currentRow = row;
             return button;
         }
