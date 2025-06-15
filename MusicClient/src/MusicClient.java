@@ -1,5 +1,7 @@
+// MusicClient.java
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import javazoom.jl.player.Player; // For MP3 playback via JLayer
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -35,7 +37,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
 
 public class MusicClient extends JFrame {
@@ -47,6 +48,7 @@ public class MusicClient extends JFrame {
     private JTextField filterField;
 
     public static void main(String[] args) {
+        // Start the GUI on the Event Dispatch Thread.
         SwingUtilities.invokeLater(() -> {
             MusicClient client = new MusicClient();
             client.showConfigDialog();
@@ -59,7 +61,7 @@ public class MusicClient extends JFrame {
         tableModel = new SongTableModel();
         table = new JTable(tableModel);
 
-        // Add play and download columns as buttons.
+        // Add extra columns for "Play" and "Download" actions.
         TableColumn playCol = new TableColumn();
         playCol.setHeaderValue("Play");
         table.addColumn(playCol);
@@ -68,6 +70,7 @@ public class MusicClient extends JFrame {
         downloadCol.setHeaderValue("Download");
         table.addColumn(downloadCol);
 
+        // Set custom renderers and editors for the action buttons.
         table.getColumnModel().getColumn(table.getColumnCount() - 2)
                 .setCellRenderer(new ButtonRenderer("Play"));
         table.getColumnModel().getColumn(table.getColumnCount() - 2)
@@ -112,16 +115,15 @@ public class MusicClient extends JFrame {
     public void fetchSongList() {
         try (Socket socket = new Socket(serverIp, serverPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream())))
+        {
             out.println("LIST");
-            // Read JSON (assuming it comes in one line)
             String json = in.readLine();
             Gson gson = new Gson();
-            // Explicitly use java.lang.reflect.Type from Gson's TypeToken.
-            java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<Song>>() {}.getType();
+            java.lang.reflect.Type listType = new TypeToken<List<Song>>() {}.getType();
             List<Song> songs = gson.fromJson(json, listType);
             tableModel.setSongs(songs);
+            System.out.println("Fetched " + songs.size() + " songs from server.");
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Failed to retrieve song list from server.");
@@ -129,6 +131,7 @@ public class MusicClient extends JFrame {
     }
 
     public void performAction(String action, Song song) {
+        System.out.println("Action: " + action + " on song: " + song.getTitle());
         if ("Play".equals(action)) {
             new Thread(() -> playSong(song)).start();
         } else if ("Download".equals(action)) {
@@ -139,25 +142,67 @@ public class MusicClient extends JFrame {
     private void playSong(Song song) {
         try (Socket socket = new Socket(serverIp, serverPort);
              OutputStream out = socket.getOutputStream();
-             BufferedInputStream in = new BufferedInputStream(socket.getInputStream())) {
-
+             BufferedInputStream in = new BufferedInputStream(socket.getInputStream()))
+        {
             PrintWriter writer = new PrintWriter(out, true);
             writer.println("STREAM " + song.getId());
 
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(in);
-            AudioFormat format = audioStream.getFormat();
-            DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
-            SourceDataLine speaker = (SourceDataLine) AudioSystem.getLine(info);
-            speaker.open(format);
-            speaker.start();
-
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = audioStream.read(buffer, 0, buffer.length)) != -1) {
-                speaker.write(buffer, 0, bytesRead);
+            String filePathLower = song.getFilePath().toLowerCase();
+            // MP3 playback via JLayer.
+            if (filePathLower.endsWith(".mp3")) {
+                try {
+                    System.out.println("Playing MP3: " + song.getTitle());
+                    Player mp3Player = new Player(in);
+                    mp3Player.play();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    JOptionPane.showMessageDialog(this, "Error playing MP3: " + song.getTitle());
+                }
+                return;
             }
-            speaker.drain();
-            speaker.close();
+            // For AAC, WMA, and OGG, use JavaFX-based playback.
+            else if (filePathLower.endsWith(".aac") ||
+                     filePathLower.endsWith(".wma") ||
+                     filePathLower.endsWith(".ogg")) {
+                // Write the stream to a temporary file.
+                File tempFile = File.createTempFile("tempAudio", filePathLower.substring(filePathLower.lastIndexOf('.')));
+                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        fos.write(buffer, 0, bytesRead);
+                    }
+                }
+                System.out.println("Playing external format (" + filePathLower + "): " + song.getTitle());
+                // Launch the JavaFX media player to play the temporary file.
+                // Note: The AudioPlayerApp class must exist in your project.
+                new Thread(() -> {
+                    try {
+                        AudioPlayerApp.launchApp(tempFile.toURI().toString());
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }).start();
+                return;
+            }
+            // Otherwise, use native Java Sound API (supporting WAV, AIFF, FLAC).
+            else {
+                System.out.println("Playing native format: " + song.getTitle());
+                AudioInputStream audioStream = AudioSystem.getAudioInputStream(in);
+                AudioFormat format = audioStream.getFormat();
+                DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
+                SourceDataLine speaker = (SourceDataLine) AudioSystem.getLine(info);
+                speaker.open(format);
+                speaker.start();
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = audioStream.read(buffer, 0, buffer.length)) != -1) {
+                    speaker.write(buffer, 0, bytesRead);
+                }
+                speaker.drain();
+                speaker.close();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Error playing song: " + song.getTitle());
@@ -166,22 +211,25 @@ public class MusicClient extends JFrame {
 
     private void downloadSong(Song song) {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setSelectedFile(new File(song.getTitle() + ".mp3"));
+        String suggestedName = song.getTitle() + song.getFilePath().substring(song.getFilePath().lastIndexOf('.'));
+        fileChooser.setSelectedFile(new File(suggestedName));
         int option = fileChooser.showSaveDialog(this);
         if (option == JFileChooser.APPROVE_OPTION) {
             File saveFile = fileChooser.getSelectedFile();
             try (Socket socket = new Socket(serverIp, serverPort);
                  OutputStream out = socket.getOutputStream();
                  BufferedInputStream in = new BufferedInputStream(socket.getInputStream());
-                 FileOutputStream fos = new FileOutputStream(saveFile)) {
-
+                 FileOutputStream fos = new FileOutputStream(saveFile))
+            {
                 PrintWriter writer = new PrintWriter(out, true);
                 writer.println("DOWNLOAD " + song.getId());
                 byte[] buffer = new byte[4096];
                 int bytesRead;
+                System.out.println("Downloading: " + song.getTitle());
                 while ((bytesRead = in.read(buffer)) > 0) {
                     fos.write(buffer, 0, bytesRead);
                 }
+                System.out.println("Download finished: " + song.getTitle());
                 JOptionPane.showMessageDialog(this, "Downloaded " + song.getTitle());
             } catch (Exception e) {
                 e.printStackTrace();
@@ -194,13 +242,17 @@ public class MusicClient extends JFrame {
         String text = filterField.getText();
         TableRowSorter<SongTableModel> sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
-        if (text.trim().length() == 0) {
+        if (text.trim().isEmpty()) {
             sorter.setRowFilter(null);
         } else {
             sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
         }
     }
 }
+
+//
+// Supporting Classes
+//
 
 class Song implements java.io.Serializable {
     private int id;
@@ -218,7 +270,7 @@ class Song implements java.io.Serializable {
 
 class SongTableModel extends AbstractTableModel {
     private String[] columnNames = { "ID", "Title", "Album", "Genre" };
-    private List<Song> songs = new ArrayList<>();
+    private List<Song> songs = new java.util.ArrayList<>();
 
     public void setSongs(List<Song> songs) {
         this.songs = songs;
@@ -258,11 +310,9 @@ class SongTableModel extends AbstractTableModel {
 }
 
 class ButtonRenderer extends JButton implements TableCellRenderer {
-
     public ButtonRenderer(String text) {
         setText(text);
     }
-
     @Override
     public java.awt.Component getTableCellRendererComponent(JTable table, Object value,
                                                             boolean isSelected, boolean hasFocus,
@@ -288,8 +338,8 @@ class ButtonEditor extends DefaultCellEditor {
             }
         });
         button.addActionListener(e -> {
-            SongTableModel model = (SongTableModel) client.table.getModel();
-            Song song = model.getSongAt(client.table.convertRowIndexToModel(currentRow));
+            int modelRow = client.table.convertRowIndexToModel(currentRow);
+            Song song = ((SongTableModel) client.table.getModel()).getSongAt(modelRow);
             client.performAction(action, song);
         });
     }
